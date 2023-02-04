@@ -1,25 +1,43 @@
 package com.aws_demo_app.user_service.Controllers;
 
+import com.aws_demo_app.user_service.AWS.FileStore;
 import com.aws_demo_app.user_service.DTO.User;
+import com.aws_demo_app.user_service.Repository.DAO.FileMetadata;
+import com.aws_demo_app.user_service.Repository.FileMetadataRepository;
 import com.aws_demo_app.user_service.Repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
+
+import static org.apache.http.entity.ContentType.*;
 
 @RestController
-@RequestMapping(value="v1/user-service/")
+@RequestMapping(value = "v1/user-service/")
 public class UserService {
 
     @Autowired
     private UserRepository userRepository; // field injection
 
-    @RequestMapping(value="addUser", method = RequestMethod.POST, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Autowired
+    private FileMetadataRepository fileMetadataRepository; // field injection
+
+    @Autowired
+    private FileStore fileStore; // field injection
+
+    @Value("${application.bucket.name}")
+    private String bucketName;
+
+
+    private final HashSet<String> ALLOWED_MIME_TYPES = new HashSet<>(Arrays.asList(IMAGE_BMP.getMimeType(), IMAGE_GIF.getMimeType(), IMAGE_PNG.getMimeType(), IMAGE_JPEG.getMimeType(), IMAGE_SVG.getMimeType()));
+
+    @RequestMapping(value = "addUser", method = RequestMethod.POST, consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public com.aws_demo_app.user_service.Repository.DAO.User createUser(@RequestBody User userDetails) throws ParseException {
         final com.aws_demo_app.user_service.Repository.DAO.User user = new com.aws_demo_app.user_service.Repository.DAO.User();
@@ -41,7 +59,7 @@ public class UserService {
         return user;
     }
 
-    @RequestMapping(value="getUsers", method = RequestMethod.GET)
+    @RequestMapping(value = "getUsers", method = RequestMethod.GET)
     @ResponseBody
     public List<com.aws_demo_app.user_service.Repository.DAO.User> getUsers() {
         // TODO: This should be converted to DTO layer and send it back as response body instead of DAO layer
@@ -50,5 +68,39 @@ public class UserService {
 
         iterable.forEach(result::add);
         return result;
+    }
+
+    @RequestMapping(value = "uploadFile", method = RequestMethod.POST, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseBody
+    public FileMetadata uploadFile(String title, String description, MultipartFile file) {
+        if (!ALLOWED_MIME_TYPES.contains(file.getContentType())) {
+            throw new IllegalStateException("File uploaded is not an image");
+        }
+
+        final HashMap<String, String> metadata = new HashMap<>();
+        metadata.put("Content-Type", file.getContentType());
+        metadata.put("Content-Length", String.valueOf(file.getSize()));
+
+        //Save Image in S3 and then save Todo in the database
+        String path = String.format("%s/%s", bucketName, UUID.randomUUID());
+        String fileName = String.format("%s", file.getOriginalFilename());
+
+        try {
+            fileStore.upload(path, fileName, metadata, file.getInputStream());
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to upload file", e);
+        }
+
+        FileMetadata fileMetadata = new FileMetadata();
+
+        fileMetadata.setImageFileName(fileName);
+        fileMetadata.setTitle(title);
+        fileMetadata.setDescription(description);
+        fileMetadata.setImagePath(path);
+
+
+        fileMetadataRepository.save(fileMetadata);
+
+        return fileMetadata;
     }
 }

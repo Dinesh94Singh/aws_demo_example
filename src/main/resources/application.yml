@@ -1,0 +1,12 @@
+# https://aws.amazon.com/blogs/opensource/getting-started-with-spring-boot-on-aws-part-1/
+cloud:
+  aws:
+    credentials:
+      accessKey:
+      secretKey:
+    region:
+      static: us-east-1
+
+application:
+  bucket:
+    name: my-aws-demo-app-images-bucket
