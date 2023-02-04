@@ -70,6 +70,19 @@ public class UserService {
         return result;
     }
 
+    @RequestMapping(value="getUserName/{userName}", method = RequestMethod.GET)
+    @ResponseBody
+    public com.aws_demo_app.user_service.Repository.DAO.User getUserName(@PathVariable  String userName) {
+        final Iterable<com.aws_demo_app.user_service.Repository.DAO.User> iterable = userRepository.findAll();
+        for (com.aws_demo_app.user_service.Repository.DAO.User user : iterable) {
+            if (user.getFirstName().equals(userName)) {
+                return user;
+            }
+        }
+
+        return null;
+    }
+
     @RequestMapping(value = "uploadFile", method = RequestMethod.POST, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseBody
     public FileMetadata uploadFile(String title, String description, MultipartFile file) {
