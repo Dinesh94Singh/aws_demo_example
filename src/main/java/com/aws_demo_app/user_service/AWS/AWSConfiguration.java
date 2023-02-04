@@ -1,16 +1,20 @@
 package com.aws_demo_app.user_service.AWS;
 
-import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.BasicSessionCredentials;
+import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
+import com.amazonaws.services.securitytoken.model.AssumeRoleRequest;
+import com.amazonaws.services.securitytoken.model.AssumeRoleResult;
+import com.amazonaws.services.securitytoken.model.Credentials;
+import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.util.logging.Logger;
 
 // How to use Value annotation - https://www.baeldung.com/spring-value-annotation
 
@@ -18,31 +22,65 @@ import java.util.logging.Logger;
 @Slf4j
 public class AWSConfiguration {
 
-    @Value("${cloud.aws.credentials.access-key}")
-    private String accessKey;
+    @Value("${cloud.aws.assumeRoleARN}")
+    private String assumeRoleARN;
 
-    @Value("${cloud.aws.credentials.secret-key}")
-    private String secretKey;
+    @Value("${cloud.aws.roleSessionName}")
+    private String roleSessionName;
 
     @Value("${cloud.aws.region.static}")
     private String regionName;
 
+    /*
+        Since accessKey and secretKey are not stored in github we will use ARN's
+
+        @Value("${cloud.aws.credentials.access-key}")
+        private String accessKey;
+
+        @Value("${cloud.aws.credentials.secret-key}")
+        private String secretKey;
+    */
+
     @Bean
     public AmazonS3 s3() {
-        // TODO: Read Access Key and Secret Key from Environment Variables, instead of yml file
+        if (StringUtils.isNotEmpty(assumeRoleARN)) {
+            // Creating the STS client is part of your trusted code. It has
+            // the security credentials you use to obtain temporary security credentials.
+            AWSSecurityTokenService stsClient = AWSSecurityTokenServiceClientBuilder.standard()
+                    .withCredentials(new ProfileCredentialsProvider())
+                    .withRegion(regionName)
+                    .build();
 
-        log.info(regionName + " is the region name");
-        log.info(accessKey + " is the access key");
-        log.info(secretKey + " is the secret key");
+            // Obtain credentials for the IAM role. Note that you cannot assume the role of an AWS root account;
+            // Amazon S3 will deny access. You must use credentials for an IAM user or an IAM role.
+            AssumeRoleRequest roleRequest = new AssumeRoleRequest()
+                    .withRoleArn(assumeRoleARN)
+                    .withRoleSessionName(roleSessionName);
 
-        AWSCredentials awsCredentials =
-                new BasicAWSCredentials(accessKey, secretKey);
+            AssumeRoleResult roleResponse = stsClient.assumeRole(roleRequest);
+            Credentials sessionCredentials = roleResponse.getCredentials();
 
-        // Amazon S3 is not Global and its only regional
-        return AmazonS3ClientBuilder
-                .standard()
-                .withCredentials(new AWSStaticCredentialsProvider(awsCredentials))
-                .withRegion(regionName)
-                .build();
+            log.info("Access Key is " + sessionCredentials.getAccessKeyId());
+            log.info("Secret Key is " + sessionCredentials.getSecretAccessKey());
+            log.info("Session token is " + sessionCredentials.getSessionToken());
+
+            // Create a BasicSessionCredentials object that contains the credentials you just retrieved.
+            BasicSessionCredentials awsCredentials = new BasicSessionCredentials(
+                    sessionCredentials.getAccessKeyId(),
+                    sessionCredentials.getSecretAccessKey(),
+                    sessionCredentials.getSessionToken());
+
+            // Provide temporary security credentials so that the Amazon S3 client
+            // can send authenticated requests to Amazon S3. You create the client
+            // using the sessionCredentials object.
+            final AmazonS3 s3Client = AmazonS3ClientBuilder.standard()
+                    .withCredentials(new AWSStaticCredentialsProvider(awsCredentials))
+                    .withRegion(regionName)
+                    .build();
+
+            return s3Client;
+        }
+
+        return null;
     }
 }

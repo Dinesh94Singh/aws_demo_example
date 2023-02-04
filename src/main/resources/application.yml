@@ -1,9 +1,8 @@
 # https://aws.amazon.com/blogs/opensource/getting-started-with-spring-boot-on-aws-part-1/
 cloud:
   aws:
-    credentials:
-      accessKey:
-      secretKey:
+    assumeRoleARN: arn:aws:iam::039316342888:role/AllowMyAwesomeWebAppToTalkToAWSServicesRole
+    roleSessionName: my-awesome-aws-app-session
     region:
       static: us-east-1
 
