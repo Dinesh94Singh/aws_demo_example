@@ -1,6 +1,7 @@
 # https://aws.amazon.com/blogs/opensource/getting-started-with-spring-boot-on-aws-part-1/
 cloud:
   aws:
+    # aws sts assume-role --role-arn "arn:aws:iam::039316342888:role/AllowMyAwesomeWebAppToTalkToAWSServicesRole" --role-session-name "CLI-Session"
     assumeRoleARN: arn:aws:iam::039316342888:role/AllowMyAwesomeWebAppToTalkToAWSServicesRole
     roleSessionName: my-awesome-aws-app-session
     region:
