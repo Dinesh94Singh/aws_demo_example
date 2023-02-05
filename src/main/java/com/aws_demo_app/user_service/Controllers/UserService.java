@@ -1,10 +1,13 @@
 package com.aws_demo_app.user_service.Controllers;
 
+import com.amazonaws.services.s3.model.ListObjectsV2Request;
+import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.aws_demo_app.user_service.AWS.FileStore;
 import com.aws_demo_app.user_service.DTO.User;
 import com.aws_demo_app.user_service.Repository.DAO.FileMetadata;
 import com.aws_demo_app.user_service.Repository.FileMetadataRepository;
 import com.aws_demo_app.user_service.Repository.UserRepository;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -33,7 +36,6 @@ public class UserService {
 
     @Value("${application.bucket.name}")
     private String bucketName;
-
 
     private final HashSet<String> ALLOWED_MIME_TYPES = new HashSet<>(Arrays.asList(IMAGE_BMP.getMimeType(), IMAGE_GIF.getMimeType(), IMAGE_PNG.getMimeType(), IMAGE_JPEG.getMimeType(), IMAGE_SVG.getMimeType()));
 
@@ -111,9 +113,17 @@ public class UserService {
         fileMetadata.setDescription(description);
         fileMetadata.setImagePath(path);
 
-
         fileMetadataRepository.save(fileMetadata);
 
         return fileMetadata;
+    }
+
+    @RequestMapping(value="delete/bucketName/{folderName}/{fileName}", method = RequestMethod.GET)
+    @ResponseBody
+    public String deleteFile(@PathVariable String folderName, @PathVariable  String fileName) throws IOException {
+        String path = folderName + "/" + fileName;
+        fileStore.deleteFile(bucketName, path);
+
+        return fileName;
     }
 }
