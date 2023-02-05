@@ -116,4 +116,15 @@ public class UserService {
 
         return fileMetadata;
     }
+
+    @RequestMapping(value="/delete/bucketName/{fileName}", method = RequestMethod.GET)
+    @ResponseBody
+    public String deleteFile(@PathVariable  String fileName) throws IOException {
+        fileStore.deleteFile(bucketName, fileName);
+
+        return fileName;
+    }
 }
+
+
+

@@ -48,4 +48,13 @@ public class FileStore {
         }
     }
 
+    public void deleteFile(String bucketName, String fileName) {
+
+        try {
+            amazonS3.deleteObject(bucketName, fileName);
+        } catch (AmazonServiceException e) {
+            throw new IllegalStateException("Failed to delete the file", e);
+        }
+    }
+
 }
