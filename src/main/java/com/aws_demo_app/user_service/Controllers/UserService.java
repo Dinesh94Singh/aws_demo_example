@@ -1,13 +1,11 @@
 package com.aws_demo_app.user_service.Controllers;
 
-import com.amazonaws.services.s3.model.ListObjectsV2Request;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.aws_demo_app.user_service.AWS.FileStore;
+import com.aws_demo_app.user_service.AWS.SQSController;
 import com.aws_demo_app.user_service.DTO.User;
 import com.aws_demo_app.user_service.Repository.DAO.FileMetadata;
 import com.aws_demo_app.user_service.Repository.FileMetadataRepository;
 import com.aws_demo_app.user_service.Repository.UserRepository;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -34,14 +32,22 @@ public class UserService {
     @Autowired
     private FileStore fileStore; // field injection
 
+    @Autowired
+    private SQSController sqsController; // field injection
+
     @Value("${application.bucket.name}")
     private String bucketName;
 
-    private final HashSet<String> ALLOWED_MIME_TYPES = new HashSet<>(Arrays.asList(IMAGE_BMP.getMimeType(), IMAGE_GIF.getMimeType(), IMAGE_PNG.getMimeType(), IMAGE_JPEG.getMimeType(), IMAGE_SVG.getMimeType()));
+    @Value("${application.queue.uri}")
+    private String endPoint;
+
+    private final HashSet<String> ALLOWED_MIME_TYPES = new HashSet<>(Arrays.asList(IMAGE_BMP.getMimeType(),
+            IMAGE_GIF.getMimeType(), IMAGE_PNG.getMimeType(), IMAGE_JPEG.getMimeType(), IMAGE_SVG.getMimeType()));
 
     @RequestMapping(value = "addUser", method = RequestMethod.POST, consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public com.aws_demo_app.user_service.Repository.DAO.User createUser(@RequestBody User userDetails) throws ParseException {
+    public com.aws_demo_app.user_service.Repository.DAO.User createUser(@RequestBody User userDetails)
+            throws ParseException {
         final com.aws_demo_app.user_service.Repository.DAO.User user = new com.aws_demo_app.user_service.Repository.DAO.User();
 
         user.setFirstName(userDetails.getFirstName());
@@ -58,13 +64,15 @@ public class UserService {
 
         userRepository.save(user);
 
+        sqsController.sendMessage(user.getID() + ": " + user.getEmail() + " created !!", endPoint);
         return user;
     }
 
     @RequestMapping(value = "getUsers", method = RequestMethod.GET)
     @ResponseBody
     public List<com.aws_demo_app.user_service.Repository.DAO.User> getUsers() {
-        // TODO: This should be converted to DTO layer and send it back as response body instead of DAO layer
+        // TODO: This should be converted to DTO layer and send it back as response body
+        // instead of DAO layer
         final List<com.aws_demo_app.user_service.Repository.DAO.User> result = new ArrayList<>();
         final Iterable<com.aws_demo_app.user_service.Repository.DAO.User> iterable = userRepository.findAll();
 
@@ -72,9 +80,9 @@ public class UserService {
         return result;
     }
 
-    @RequestMapping(value="getUserName/{userName}", method = RequestMethod.GET)
+    @RequestMapping(value = "getUserName/{userName}", method = RequestMethod.GET)
     @ResponseBody
-    public com.aws_demo_app.user_service.Repository.DAO.User getUserName(@PathVariable  String userName) {
+    public com.aws_demo_app.user_service.Repository.DAO.User getUserName(@PathVariable String userName) {
         final Iterable<com.aws_demo_app.user_service.Repository.DAO.User> iterable = userRepository.findAll();
         for (com.aws_demo_app.user_service.Repository.DAO.User user : iterable) {
             if (user.getFirstName().equals(userName)) {
@@ -96,7 +104,7 @@ public class UserService {
         metadata.put("Content-Type", file.getContentType());
         metadata.put("Content-Length", String.valueOf(file.getSize()));
 
-        //Save Image in S3 and then save Todo in the database
+        // Save Image in S3 and then save Todo in the database
         String path = String.format("%s/%s", bucketName, UUID.randomUUID());
         String fileName = String.format("%s", file.getOriginalFilename());
 
@@ -118,9 +126,9 @@ public class UserService {
         return fileMetadata;
     }
 
-    @RequestMapping(value="delete/bucketName/{folderName}/{fileName}", method = RequestMethod.GET)
+    @RequestMapping(value = "delete/bucketName/{folderName}/{fileName}", method = RequestMethod.GET)
     @ResponseBody
-    public String deleteFile(@PathVariable String folderName, @PathVariable  String fileName) throws IOException {
+    public String deleteFile(@PathVariable String folderName, @PathVariable String fileName) throws IOException {
         String path = folderName + "/" + fileName;
         fileStore.deleteFile(bucketName, path);
 
