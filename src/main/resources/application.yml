@@ -10,3 +10,5 @@ cloud:
 application:
   bucket:
     name: my-aws-demo-app-images-bucket
+  queue:
+    uri: https://sqs.ap-northeast-1.amazonaws.com/039316342888/my-awesome-sqs
